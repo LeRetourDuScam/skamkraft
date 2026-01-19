@@ -5,6 +5,11 @@ import { Contract } from "../skama_code/api/contract.js";
 import { Modal } from "../skama_code/ui/modal.js";
 
 export default function contracts(temp_engine) {
+  // Supprimer le panneau de status du système
+  if (window.cleanupSystemStatusPanel) {
+    window.cleanupSystemStatusPanel();
+  }
+  
   temp_engine.after_render(menu_mod);
 
   let modal = new Modal("contracts-modal", temp_engine);
@@ -16,12 +21,32 @@ export default function contracts(temp_engine) {
     Contract.list(10, 1, (contracts) => {
       //Evenements accepter
       temp_engine.add_event(".btn-accept", "click", (e) => {
+        let button = $(e.target);
+        
+        // Empêcher les clics multiples
+        if (button.prop("disabled")) {
+          return;
+        }
+        
+        button.prop("disabled", true);
+        button.html("Processing...");
+        
         contracts.forEach((contract) => {
-          if ($(e.target).attr("data-id") == contract.id) {
+          if (button.attr("data-id") == contract.id) {
             contract.accept(() => {
-              $(e.target).parent().children(".status-onhold").html("Status : accepté");
-              $(e.target).parent().children(".status-onhold").attr("class", 'status-accepted');
-              $(e.target).html("Contract accepted")
+              button.parent().children(".status-onhold").html("Status : accepté");
+              button.parent().children(".status-onhold").attr("class", 'status-accepted');
+              button.html("Contract accepted");
+            }, (err) => {
+              // Restaurer le bouton en cas d'erreur
+              button.prop("disabled", false);
+              button.html("Accepter");
+              
+              let errorMsg = "Failed to accept contract";
+              if (err.responseJSON && err.responseJSON.error) {
+                errorMsg = err.responseJSON.error.message;
+              }
+              alert(errorMsg);
             });
           }
         });
@@ -59,6 +84,26 @@ export default function contracts(temp_engine) {
 
         if (contract.accepted) {
           status = "accepted"
+          let fulfilled = contract.fulfilled ? "COMPLETED" : "IN PROGRESS";
+          let fulfilledColor = contract.fulfilled ? "#00ff00" : "#ffaa00";
+          let deliveryProgress = "";
+          
+          if (contract.deliver && contract.deliver.length > 0) {
+            contract.deliver.forEach(delivery => {
+              let progress = delivery.unitsFulfilled || 0;
+              let total = delivery.unitsRequired || 0;
+              let percentage = total > 0 ? Math.round((progress / total) * 100) : 0;
+              deliveryProgress += `
+                <div style="margin: 10px 0; font-size: 12px;">
+                  <div>${delivery.tradeSymbol}: ${progress}/${total} (${percentage}%)</div>
+                  <div style="background: #333; height: 10px; border-radius: 5px; overflow: hidden;">
+                    <div style="background: ${percentage === 100 ? '#00ff00' : '#00aaff'}; height: 100%; width: ${percentage}%; transition: width 0.3s;"></div>
+                  </div>
+                </div>
+              `;
+            });
+          }
+          
           card =
             `                            
                     <div class="card">
@@ -66,8 +111,9 @@ export default function contracts(temp_engine) {
                       <div class="card-body">
                         <h5 style="color:white" class="card-title">${contract.faction}</h5>
                         <p style="color:white" class="card-text">${contract.deadline}</p>
-                        <p class="card-text status-accepted">Status : ${status}</p>
-                        <p></p>                     
+                        <p class="card-text status-accepted">Status: ${status}</p>
+                        <p style="color: ${fulfilledColor}; font-weight: bold;">${fulfilled}</p>
+                        ${deliveryProgress}                     
                       </div>
                       <div class="card-button">
                         <button data-id="${contract.id}" type="button" class="btn btn-primary btn-infos" data-bs-toggle="modal" data-bs-target="#exampleModal">Infos</button> 

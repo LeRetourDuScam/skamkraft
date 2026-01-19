@@ -4,6 +4,11 @@ import { Ship } from "../skama_code/api/ship.js";
 
 
 export default (temp_engine) => {
+  // Supprimer le panneau de status du système
+  if (window.cleanupSystemStatusPanel) {
+    window.cleanupSystemStatusPanel();
+  }
+  
   let modal = new Modal("ship-modal", temp_engine);
   let slideIndex = 1;
 
@@ -14,7 +19,6 @@ export default (temp_engine) => {
 
     Ship.list((ships) => {
       ships.forEach(ship => {
-        console.log(ship)
         $(".block-ships").prepend(
           `
             <div class="ships-list" data-id="${ship.symbol}">

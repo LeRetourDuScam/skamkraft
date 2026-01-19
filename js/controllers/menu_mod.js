@@ -43,7 +43,12 @@ function loged_links(temp_engine, lister) {
 
   temp_engine.add_event("#systems-link", "click", () => {
     if(lister) lister.stop();
-    system(temp_engine, My.agent.get_agent_system());
+    if (!My.agent) {
+      alert("Agent not loaded. Please refresh the page.");
+      return;
+    }
+    let systemName = My.agent.get_agent_system();
+    system(temp_engine, systemName, true);
   });
 }
 

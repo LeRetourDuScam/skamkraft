@@ -1,6 +1,11 @@
 import menu_mod from "./menu_mod.js";
 
 export default function home(temp_engine) {
+  // Supprimer le panneau de status du système
+  if (window.cleanupSystemStatusPanel) {
+    window.cleanupSystemStatusPanel();
+  }
+  
   temp_engine.after_render(() => {
     $("body").css("background-image", "url('/assets/img/background.png')")
     menu_mod(temp_engine, null);
