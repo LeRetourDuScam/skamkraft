@@ -1,4 +1,5 @@
 import { My } from "../skama_code/commun/my.js";
+import { showSnackbar } from "../skama_code/ui/notifications.js";
 import home from "./home.js";
 import profile from "./profile.js";
 import contracts from "./contracts.js";
@@ -44,7 +45,7 @@ function loged_links(temp_engine, lister) {
   temp_engine.add_event("#systems-link", "click", () => {
     if(lister) lister.stop();
     if (!My.agent) {
-      alert("Agent not loaded. Please refresh the page.");
+      showSnackbar("Agent not loaded. Please refresh the page.", 'error');
       return;
     }
     let systemName = My.agent.get_agent_system();

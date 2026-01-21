@@ -1,8 +1,10 @@
 "use strict";
 
 import menu_mod from "./menu_mod.js";
-import { Contract } from "../skama_code/api/contract.js";
+import { Contract } from "../skama_code/api/contract.js"
+import { showSnackbar, showConfirmModal } from "../skama_code/ui/notifications.js";
 import { Modal } from "../skama_code/ui/modal.js";
+import { Ship } from "../skama_code/api/ship.js";
 
 export default function contracts(temp_engine) {
   // Supprimer le panneau de status du système
@@ -46,7 +48,7 @@ export default function contracts(temp_engine) {
               if (err.responseJSON && err.responseJSON.error) {
                 errorMsg = err.responseJSON.error.message;
               }
-              alert(errorMsg);
+              showSnackbar(errorMsg, 'error');
             });
           }
         });
@@ -67,15 +69,18 @@ export default function contracts(temp_engine) {
         });
       });
 
+      // Vider le conteneur avant d'ajouter les contrats
+      $('.contracts').empty();
+      
       contracts.forEach(contract => {
         let img
         let status
         let card
 
-        if (contract.type = "PROCUREMENT") {
+        if (contract.type === "PROCUREMENT") {
           img = "/assets/contracts/procurement.png"
         }
-        else if (contract.type = "TRANSPORT") {
+        else if (contract.type === "TRANSPORT") {
           img = "/assets/contracts/transportation.png"
         }
         else {
@@ -145,6 +150,21 @@ export default function contracts(temp_engine) {
         $('.contracts').append(card);
         
       });
+      
+      // Si aucun contrat actif, afficher un message avec option de négocier
+      if (contracts.length === 0) {
+        $('.contracts').html(`
+          <div style="text-align: center; padding: 40px; color: white;">
+            <h3>📋 No active contracts</h3>
+            <p>All your contracts are completed! Visit a faction headquarters to negotiate new contracts.</p>
+          </div>
+        `);
+      }
+      
+      // Event pour négocier un nouveau contrat
+      $("#btn-negotiate").off("click").on("click", function() {
+        showNegotiateModal();
+      });
 
     })
     temp_engine.add_event(".btn-close", "click", () => {
@@ -153,4 +173,89 @@ export default function contracts(temp_engine) {
     menu_mod(temp_engine, null);
   });
   temp_engine.render("templates/contracts/contracts.html")
+}
+
+/**
+ * Affiche la modal pour négocier un nouveau contrat
+ */
+function showNegotiateModal() {
+  Ship.list((ships) => {
+    // Filtrer les vaisseaux dockés
+    const dockedShips = ships.filter(s => s.nav.status === 'DOCKED');
+    
+    if (dockedShips.length === 0) {
+      showSnackbar("No docked ships available. Dock a ship at a faction HQ to negotiate.", 'warning');
+      return;
+    }
+    
+    let shipsHTML = dockedShips.map(ship => `
+      <button class="negotiate-ship-btn" data-ship="${ship.symbol}" 
+          style="display: block; width: 100%; margin: 8px 0; padding: 15px; 
+          background: linear-gradient(135deg, #1a1a3a, #2a2a4a); color: white; 
+          border: 1px solid #00ffff; border-radius: 8px; cursor: pointer; text-align: left;">
+        <div style="font-weight: bold; font-size: 14px;">🚀 ${ship.symbol}</div>
+        <div style="font-size: 12px; color: #aaa; margin-top: 5px;">
+          📍 ${ship.nav.waypointSymbol} | Status: ${ship.nav.status}
+        </div>
+      </button>
+    `).join('');
+    
+    let modalHTML = `
+      <div id="negotiate-modal" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+          background: rgba(0, 0, 0, 0.95); color: white; padding: 25px; border-radius: 12px; 
+          border: 2px solid #00ffff; z-index: 10000; min-width: 400px; max-width: 500px;
+          box-shadow: 0 0 30px rgba(0, 255, 255, 0.4);">
+        <h2 style="margin-top: 0; color: #00ffff; border-bottom: 2px solid #00ffff; padding-bottom: 10px;">
+          🤝 Negotiate New Contract
+        </h2>
+        <p style="color: #aaa; font-size: 13px; margin-bottom: 15px;">
+          Select a docked ship to negotiate a new contract. The ship must be at a faction headquarters.
+        </p>
+        <div style="max-height: 300px; overflow-y: auto;">
+          ${shipsHTML}
+        </div>
+        <button id="close-negotiate-modal" style="margin-top: 15px; padding: 12px 20px; 
+            background: #ff4444; color: white; border: none; border-radius: 5px; 
+            cursor: pointer; font-weight: bold; width: 100%;">Cancel</button>
+      </div>
+      <div id="negotiate-overlay" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; 
+          background: rgba(0, 0, 0, 0.7); z-index: 9999;"></div>
+    `;
+    
+    $("body").append(modalHTML);
+    
+    // Fermer la modal
+    $("#close-negotiate-modal, #negotiate-overlay").on("click", function() {
+      $("#negotiate-modal").remove();
+      $("#negotiate-overlay").remove();
+    });
+    
+    // Négocier avec le vaisseau sélectionné
+    $(".negotiate-ship-btn").on("click", function() {
+      const shipSymbol = $(this).data("ship");
+      const btn = $(this);
+      
+      btn.prop("disabled", true);
+      btn.css("opacity", "0.5");
+      btn.find("div:first").html("⏳ Negotiating...");
+      
+      Contract.negotiate(shipSymbol, (newContract) => {
+        $("#negotiate-modal").remove();
+        $("#negotiate-overlay").remove();
+        showSnackbar(`✅ New contract negotiated! Type: ${newContract.type}, Payment: ${newContract.paymentFulfill} credits`, 'success', 5000);
+        // Recharger la page pour voir le nouveau contrat
+        setTimeout(() => {
+          location.reload();
+        }, 1500);
+      }, (errorMsg) => {
+        btn.prop("disabled", false);
+        btn.css("opacity", "1");
+        btn.find("div:first").html(`🚀 ${shipSymbol}`);
+        showSnackbar(errorMsg, 'error', 5000);
+      });
+    });
+    
+  }, (err) => {
+    showSnackbar("Failed to load ships", 'error');
+  });
 }
